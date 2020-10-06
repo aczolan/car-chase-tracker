@@ -7,12 +7,16 @@ import imutils
 import time
 import pandas as pd
 import sys
+import math
 
 #Global vars
 g_frameCounter = 0 #Number of frames that have passed
 g_trackedPoints = deque(maxlen=32) #List of tracked points
 g_directionChangeArray = [] #List of direction changes (direction, timestamp)
 g_currentDirection = "" #Current direction
+
+g_euclideanThreshold = 390 #Euclidean distance threshold
+g_jumpDetected = False #Current tracked object has moved past the movement threshold
 
 #Parse the command line arguments
 #Return video file path
@@ -36,14 +40,10 @@ def getContours(frame):
 
 	modifiedFrame = frame
 
-	print "--getContours, modifiedFrame is {}".format(type(modifiedFrame))
-
 	#Resize the frame, blur it, and convert it to the HSV color space
 	modifiedFrame = imutils.resize(modifiedFrame, width=600)
 	blurred = cv2.GaussianBlur(modifiedFrame, (11, 11), 0)
 	hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
-
-	print "--getContours, hsv is {}".format(type(hsv))
 
 	#Construct a mask for the color "green"
 	#Then, perform a series of dilations and erosions to remove small blobs left in the mask
@@ -51,18 +51,10 @@ def getContours(frame):
 	mask = cv2.erode(mask, None, iterations=2)
 	mask = cv2.dilate(mask, None, iterations=2)
 
-	print "--getContours, mask is {}".format(type(mask))
-
 	#Find contours in the mask
 	contours = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-	print "--getContours, (1) contours is {}".format(type(contours))
-	print "--getContours, (1) contours[0] is {}".format(type(contours[0]))
-	print "--getContours, (1) contours[1] is {}".format(type(contours[1]))
-
 	contours = imutils.grab_contours(contours)
-
-	print "--getContours, (2) contours is {}, length {}".format( type(contours), len(contours) )
 
 	return (modifiedFrame, contours)
 #end getContours
@@ -94,11 +86,7 @@ def processContours(frame, contours):
 		#Then, update the list of tracked points
 		g_trackedPoints.appendleft(center)
 
-	print "What is newFrame? {}".format(type(newFrame))
-
 	newFrame = drawTrailToFrame(newFrame, g_trackedPoints)
-
-	print "What is newFrame? {}".format(type(newFrame))
 
 	return newFrame
 #end processContours
@@ -135,6 +123,9 @@ def drawTrailToFrame(frame, points):
 		endPoint = points[pointNum] #end of line segment
 		color = (0, 0, 255) #color
 
+		if g_jumpDetected:
+			color = (255, 0, 0)
+
 		#add this line segment to the frame
 		cv2.line(newFrame, startPoint, endPoint, color, thickness)
 
@@ -148,6 +139,8 @@ def getDirectionChanges():
 	global g_trackedPoints
 	global g_currentDirection
 	global g_frameCounter
+	global g_directionChangeArray
+	global g_jumpDetected
 
 	thisDirection = "" #Current direction of the most recent x-y movement
 
@@ -159,33 +152,44 @@ def getDirectionChanges():
 	dX = g_trackedPoints[-1][0] - g_trackedPoints[1][0]
 	dY = g_trackedPoints[-1][0] - g_trackedPoints[1][1]
 
-	#Then, re-initialize the direction text variables
-	(dirX, dirY) = ("", "")
+	euclideanDistance = math.sqrt( math.pow(dX, 2) + math.pow(dY, 2) )
+	print "Euc dist: {}".format(euclideanDistance)
 
-	#Ensure there is significant movement in the x-direction
-	if np.abs(dX) > xDirectionThreshold:
-		#Set x-direction text
-		dirX = "East" if np.sign(dX) == 1 else "West"
+	if euclideanDistance <= g_euclideanThreshold:
+		#Assess the current travel direction
+		g_jumpDetected = False
 
-	#Ensure there is significant movement in the y-direction
-	if np.abs(dX) > yDirectionThreshold:
-		#Set the y-direction text
-		dirY = "North" if np.sign(dY) == 1 else "South"
+		#Then, re-initialize the direction text variables
+		(dirX, dirY) = ("", "")
 
-	#Check if both directions are non-empty
-	if dirX != "" and dirY != "":
-		thisDirection = "{}-{}".format(dirY, dirX)
-	#Otherwise, only one direction is non-empty
+		#Ensure there is significant movement in the x-direction
+		if np.abs(dX) > xDirectionThreshold:
+			#Set x-direction text
+			dirX = "East" if np.sign(dX) == 1 else "West"
+
+		#Ensure there is significant movement in the y-direction
+		if np.abs(dX) > yDirectionThreshold:
+			#Set the y-direction text
+			dirY = "North" if np.sign(dY) == 1 else "South"
+
+		#Check if both directions are non-empty
+		if dirX != "" and dirY != "":
+			thisDirection = "{}-{}".format(dirY, dirX)
+		#Otherwise, only one direction is non-empty
+		else:
+			thisDirection = dirX if dirX != "" else dirY
+
+		#Update global direction vars
+		if not ( thisDirection in g_currentDirection ) :
+			print "New direction: {}".format(thisDirection)
+			g_currentDirection = thisDirection
+			g_directionChangeArray.append({
+				"direction": g_currentDirection,
+				"timestamp": g_frameCounter
+				})
 	else:
-		thisDirection = dirX if dirX != "" else dirY
-
-	#Update global direction vars
-	if ( g_currentDirection != "" ) and not ( thisDirection in g_currentDirection ) :
-		g_currentDirection = thisDirection
-		g_directionChangeArray.append({
-			"direction": g_currentDirection,
-			"timestamp": g_frameCounter
-			})
+		#Do not update the 
+		g_jumpDetected = True
 
 	return (dX, dY)
 #end getDirectionChanges
@@ -234,7 +238,7 @@ if __name__ == "__main__":
 		sys.exit(1)
 
 	#Skip a few seconds into the video
-	framesToSkip = 300
+	framesToSkip = 180
 	while framesToSkip > 0:
 		cv2.imshow("Frame", frame)
 		ok, frame = videoStream.read()
@@ -249,7 +253,6 @@ if __name__ == "__main__":
 	#Main while loop. On every iteration, get the next frame from the video stream and process it.
 	g_frameCounter = 0
 	while True:
-		print "Frame Counter: {}".format(g_frameCounter)
 
 		#Grab the current frame
 		currentFrame = videoStream.read()
@@ -260,15 +263,10 @@ if __name__ == "__main__":
 		#If we didn't grab a frame, then we have reached the end of the video
 		if currentFrame is None:
 			break
-		print "currentFrame is {}".format(type(currentFrame))
 		workingFrame = currentFrame
 
 		#Get contours of this frame
 		resizedFrame, contours = getContours(workingFrame)
-
-		print "resizedFrame is {}".format(type(resizedFrame))
-		print "contours is {}".format(type(contours))
-		print "is contours empty? {}".format(len(contours) == 0)
 
 		if resizedFrame is None:
 			#Do not change workingFrame
@@ -322,5 +320,42 @@ if __name__ == "__main__":
 		g_frameCounter += 1
 
 	#end big while loop
+
+	outputFileName = "tracker_output.csv"
+	linesToWrite = []
+	for entry in g_directionChangeArray:
+		nextLine = ""
+		for val in entry.values():
+			nextLine += str(val)
+			if entry.values()[-1] != val:
+				nextLine += ","
+
+		nextLine += "\n"
+		linesToWrite.append(nextLine)
+
+	myCsvFile = open(outputFileName, 'w')
+	myCsvFile.writelines(linesToWrite)
+	print "Wrote to output file {}".format(outputFileName)
+	myCsvFile.close()
+
+	#dataFrame stuff
+
+	# dataFrame = pd.DataFrame(g_directionChangeArray)
+
+	# print "dataFrame is {}".format(type(dataFrame))
+
+	# dataFrame = dataFrame[dataFrame['direction'] != ""]
+
+	# jsonFile = open('output.json', 'w')
+	# jsonFile.write(dataFrame.to_json(orient='records'))
+	# jsonFile.close()
+
+	# csvFile = open('output.csv', 'w')
+	# csvFile.write(dataFrame.to_csv(index=False, line_terminator='\n'))
+	# csvFile.close()
+
+	#Release the camera and close all windows
+	videoStream.release()
+	cv2.destroyAllWindows()
 
 #end main body
