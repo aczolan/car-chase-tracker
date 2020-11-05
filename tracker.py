@@ -9,14 +9,20 @@ import pandas as pd
 import sys
 import math
 
+from contours import *
+from drawing import *
+
 #Global vars
 g_frameCounter = 0 #Number of frames that have passed
 g_trackedPoints = deque(maxlen=32) #List of tracked points
 g_directionChangeArray = [] #List of direction changes (direction, timestamp)
 g_currentDirection = "" #Current direction
 
-g_euclideanThreshold = 390 #Euclidean distance threshold
+g_euclideanThreshold = 9999999 #Euclidean distance threshold
 g_jumpDetected = False #Current tracked object has moved past the movement threshold
+
+g_numTrackers = 5 #Max is 10 for now
+g_showMasks = False
 
 #Parse the command line arguments
 #Return video file path
@@ -25,112 +31,13 @@ def parseCommandLineArgs(args):
 		videoFilePath = args[1]
 		print "Video path: {}".format(videoFilePath)
 		return videoFilePath
+		if any("-showMasks" in arg for arg in args):
+			showMasks = True
 
 	print "Error: Must specify video file path."
 	print "Usage: python object_movement.py object_tracking_example.mp4"
 	return None
 #end parseCommandLineArgs
-
-#Process the current frame. Apply blurs/conversions/masks
-#Return a modified frame and list of contours in the frame. Tuple: (frame, contours)
-def getContours(frame):
-
-	greenLower = (29, 86, 6) #Lower boundary for green detection in HSV color space
-	greenUpper = (64, 255, 255) #Upper boundary for green detection
-
-	modifiedFrame = frame
-
-	#Resize the frame, blur it, and convert it to the HSV color space
-	modifiedFrame = imutils.resize(modifiedFrame, width=600)
-	blurred = cv2.GaussianBlur(modifiedFrame, (11, 11), 0)
-	hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
-
-	#Construct a mask for the color "green"
-	#Then, perform a series of dilations and erosions to remove small blobs left in the mask
-	mask = cv2.inRange(hsv, greenLower, greenUpper)
-	mask = cv2.erode(mask, None, iterations=2)
-	mask = cv2.dilate(mask, None, iterations=2)
-
-	#Find contours in the mask
-	contours = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-	contours = imutils.grab_contours(contours)
-
-	return (modifiedFrame, contours)
-#end getContours
-
-#Process the contours found on this frame
-#Return the new frame with the circle, centroid, and trail drawn on it
-def processContours(frame, contours):
-
-	circleMinRadius = 10
-	newFrame = frame
-
-	#Only proceed if at least one contour was found
-	if len(contours) == 0:
-		return None
-
-	#Find the largest contour in the mask
-	#Then, use it to compute the minimum enclosing circle and its centroid
-
-	largestContour = max(contours, key=cv2.contourArea)
-	((x, y), radius) = cv2.minEnclosingCircle(largestContour)
-	M = cv2.moments(largestContour) #M is a "Moment"
-	center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-
-	if radius > circleMinRadius:
-
-		#Draw the circle and centroid on the frame
-		newFrame = drawCircleToFrame(newFrame, (int (x), int(y)), int(radius), center)
-
-		#Then, update the list of tracked points
-		g_trackedPoints.appendleft(center)
-
-	newFrame = drawTrailToFrame(newFrame, g_trackedPoints)
-
-	return newFrame
-#end processContours
-
-#Draw the circle and centroid (for the most recent tracked point) on the frame
-#Return the new frame with the circle and centroid drawn on it
-def drawCircleToFrame(frame, circleCenter, circleRadius, centroidCenter):
-	circleColor = (0, 255, 255)
-	centroidColor = (0, 0, 255)
-	centroidRadius = 5
-
-	newFrame = frame
-
-	cv2.circle(newFrame, circleCenter, circleRadius, circleColor, 2)
-	cv2.circle(newFrame, centroidCenter, centroidRadius, centroidColor, -1)
-
-	return newFrame
-#end drawCircleToFrame
-
-#Draw connected lines that trail behind the tracked point
-#Return the new frame with the trail drawn on it
-def drawTrailToFrame(frame, points):
-
-	newFrame = frame
-
-	#Iterate over all points and draw line segments between them
-	for pointNum in np.arange(1, len(points)):
-
-		if points[pointNum - 1] is None or points[pointNum] is None:
-			continue
-
-		thickness = int(np.sqrt(32 / float(pointNum + 1)) * 2.5) #thickness
-		startPoint = points[pointNum - 1] #start of line segment
-		endPoint = points[pointNum] #end of line segment
-		color = (0, 0, 255) #color
-
-		if g_jumpDetected:
-			color = (255, 0, 0)
-
-		#add this line segment to the frame
-		cv2.line(newFrame, startPoint, endPoint, color, thickness)
-
-	return newFrame
-#end drawTrailToFrame
 
 #Get the changes in direction (dX and dY)
 #Return (dX, dY) tuple
@@ -194,32 +101,33 @@ def getDirectionChanges():
 	return (dX, dY)
 #end getDirectionChanges
 
-#Draw the text that displays the current direction and dX/dY values
-#Return the new frame with the text drawn on it
-def drawDirectionText(frame, direction, dX, dY):
+def getDirectionInSemicircle(vector, north_or_south_string):
+	thresh_val_1 = 0.38268 # cos(3pi/8)
+	thresh_val_2 = 0.92388 # cos(pi/8)
+	direction = ""
 
-	global g_frameCounter
+	if vector[0] < (-1 * thresh_val_2):
+		direction = "West"
+	elif vector[0] < (-1 * thresh_val_1):
+		direction = "{}-West".format(north_or_south_string)
+	elif vector[0] < thresh_val_1:
+		direction = "North"
+	elif vector[0] < thresh_val_2:
+		direction = "{}-East".format(north_or_south_string)
+	else:
+		direction = "East"
 
-	directionText = direction
-	directionTextPosition = (10, 30)
-	directionTextFont = cv2.FONT_HERSHEY_SIMPLEX
-	directionTextSize = 0.65
-	directionTextColor = (0, 0, 255)
+	return direction
+#end function
 
-	dxdyText = "frame: {}, dx: {}, dy: {}".format(g_frameCounter, dX, dY)
-	dxdyTextPosition = (10, frame.shape[0] - 10)
-	dxdyTextFont = cv2.FONT_HERSHEY_SIMPLEX
-	dxdyTextSize = 0.35
-	dxdyTextColor = (0, 0, 255)
-
-	newFrame = frame
-
-	cv2.putText(newFrame, direction, directionTextPosition, directionTextFont, directionTextSize, directionTextColor, 3)
-	cv2.putText(newFrame, dxdyText, dxdyTextPosition, dxdyTextFont, dxdyTextSize, dxdyTextColor, 1)
-
-	return newFrame
-#end getDirectionText
-
+def determineDirection(normalized_vector):
+	if normalized_vector[1] >= 0:
+		#Quadrant 1 or 2
+		return getDirectionInSemicircle(normalized_vector, "North")
+	else:
+		#Quadrant 3 or 4
+		return getDirectionInSemicircle(normalized_vector, "South")
+#end determineDirection
 
 #main body
 if __name__ == "__main__":
@@ -250,69 +158,122 @@ if __name__ == "__main__":
 	#Allow the camera or video file to warm up
 	time.sleep(2.0)
 
+	#Initialize all trackers
+	all_trackers = []
+	#mask_hue_length = round(360 / g_numTrackers)
+	mask_hue_length = 36
+	mask_hue_start_val = 30 #Start at green
+	for i in range(g_numTrackers):
+		hue_lower_bound = (mask_hue_start_val + mask_hue_length * i) % 360
+		hue_upper_bound = (mask_hue_start_val + (mask_hue_length * (i + 1)) - 1) % 360
+
+		this_lower_bound = (hue_lower_bound, 86, 6)
+		this_upper_bound = (hue_upper_bound, 255, 255)
+		new_tracker = ColorTracker(this_lower_bound, this_upper_bound)
+		all_trackers.append(new_tracker)
+
 	#Main while loop. On every iteration, get the next frame from the video stream and process it.
 	g_frameCounter = 0
 	while True:
 
 		#Grab the current frame
-		currentFrame = videoStream.read()
+		current_frame = videoStream.read()
 
 		#"Handle the frame from VideoCapture or VideoStream"
-		currentFrame = currentFrame[1]
+		current_frame = current_frame[1]
 
 		#If we didn't grab a frame, then we have reached the end of the video
-		if currentFrame is None:
+		if current_frame is None:
 			break
-		workingFrame = currentFrame
+		prepped_frame = current_frame.copy()
 
-		#Get contours of this frame
-		resizedFrame, contours = getContours(workingFrame)
+		#Do initial frame prep
+		prepped_frame = imutils.resize(prepped_frame, width=600)
+		working_frame = prepped_frame.copy()
 
-		if resizedFrame is None:
-			#Do not change workingFrame
-			pass
-		else:
-			workingFrame = resizedFrame
+		prepped_frame = cv2.GaussianBlur(prepped_frame, (11, 11), 0)
+		prepped_frame = cv2.cvtColor(prepped_frame, cv2.COLOR_BGR2HSV)
+
+		#Iterate over all trackers and give them this frame
+		#Get the trackers' current centroids and vectors
+		overall_direction_vector = []
+		overall_direction_vector.append(0)
+		overall_direction_vector.append(0)
+
+		for tracker in all_trackers:
+			#Update tracker with this frame
+			tracker.processNewFrame(prepped_frame)
+			overall_direction_vector[0] = overall_direction_vector[0] + tracker.current_vector[0]
+			overall_direction_vector[1] = overall_direction_vector[1] + tracker.current_vector[1]
+
+			#Draw shit on the screen
+			if tracker.should_draw_circle and len(tracker.tracked_points) > 1:
+				current_point = tracker.tracked_points[0]
+				#Draw the circle
+				working_frame = drawCircleToFrame(working_frame, current_point, int(round(tracker.current_circle_radius)), current_point)
+				#Draw the arrow
+				working_frame = drawArrowToFrame(working_frame, current_point, tracker.current_vector)
 
 
-		#Process the contours and get a frame with stuff drawn on it
-		frameWithTrackerStuff = processContours(workingFrame, contours)
+		#Normalize this vector when done
+		overall_euc_distance = math.sqrt( math.pow(overall_direction_vector[0], 2) + math.pow(overall_direction_vector[1], 2) )
+		if overall_euc_distance != 0.0:
+			overall_direction_vector[0] = overall_direction_vector[0] / overall_euc_distance
+			overall_direction_vector[1] = overall_direction_vector[1] / overall_euc_distance
 
-		if frameWithTrackerStuff is None:
-			#Do not change workingFrame
-			pass
-		else:
-			workingFrame = frameWithTrackerStuff
+		#Determine direction from this vector
+		direction_string = determineDirection(overall_direction_vector)
+		#Draw this on the screen
+		working_frame = drawDirectionText(working_frame, direction_string, overall_direction_vector[0], overall_direction_vector[1], g_frameCounter)
 
-		# frameToDisplay = None
-		# if frameWithTrackerStuff is None:
-		# 	frameToDisplay = currentFrame
-		# 	print "frameToDisplay takes currentFrame"
-		# 	print "currentFrame is {}".format(type(currentFrame))
+		# #Get contours of this frame
+		# resizedFrame, contours = getContours(workingFrame)
+
+		# if resizedFrame is None:
+		# 	#Do not change workingFrame
+		# 	pass
 		# else:
-		# 	frameToDisplay = frameWithTrackerStuff
-		# 	print "frameToDisplay takes frameWithTrackerStuff"
+		# 	workingFrame = resizedFrame
 
-		# print "frameWithTrackerStuff is {}".format(type(frameWithTrackerStuff))
-		# print "frameToDisplay is {}".format(type(frameToDisplay))
 
-		#Get the current traveling direction of this frame (compared to the last frame)
-		frameWithDirectionText = None
-		if len(g_trackedPoints) > 2:
+		# #Process the contours and get a frame with stuff drawn on it
+		# frameWithTrackerStuff = processContours(workingFrame, contours, g_trackedPoints, g_jumpDetected)
 
-			frameWithDirectionText = workingFrame
-			(thisFrameDX, thisFrameDY) = getDirectionChanges()
-			frameWithDirectionText = drawDirectionText(frameWithDirectionText, g_currentDirection, thisFrameDX, thisFrameDY)
+		# if frameWithTrackerStuff is None:
+		# 	#Do not change workingFrame
+		# 	pass
+		# else:
+		# 	workingFrame = frameWithTrackerStuff
 
-		if frameWithDirectionText is None:
-			#Do not change workingFrame
-			pass
-		else:
-			workingFrame = frameWithDirectionText
+		# # frameToDisplay = None
+		# # if frameWithTrackerStuff is None:
+		# # 	frameToDisplay = currentFrame
+		# # 	print "frameToDisplay takes currentFrame"
+		# # 	print "currentFrame is {}".format(type(currentFrame))
+		# # else:
+		# # 	frameToDisplay = frameWithTrackerStuff
+		# # 	print "frameToDisplay takes frameWithTrackerStuff"
+
+		# # print "frameWithTrackerStuff is {}".format(type(frameWithTrackerStuff))
+		# # print "frameToDisplay is {}".format(type(frameToDisplay))
+
+		# #Get the current traveling direction of this frame (compared to the last frame)
+		# frameWithDirectionText = None
+		# if len(g_trackedPoints) > 2:
+
+		# 	frameWithDirectionText = workingFrame
+		# 	(thisFrameDX, thisFrameDY) = getDirectionChanges()
+		# 	frameWithDirectionText = drawDirectionText(frameWithDirectionText, g_currentDirection, thisFrameDX, thisFrameDY, g_frameCounter)
+
+		# if frameWithDirectionText is None:
+		# 	#Do not change workingFrame
+		# 	pass
+		# else:
+		# 	workingFrame = frameWithDirectionText
 
 
 		#We're ready to draw the modified frame now.
-		cv2.imshow("Frame", workingFrame)
+		cv2.imshow("Frame", working_frame)
 		key = cv2.waitKey(1) & 0xFF
 		if key == ord('q'):
 			break
