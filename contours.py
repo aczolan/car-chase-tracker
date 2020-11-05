@@ -21,15 +21,14 @@ class ColorTracker:
 
 	jump_detected = False
 	should_draw_circle = False
+	show_mask_window = False
 
 	def processNewFrame(self, new_frame):
 		#1. Get the contours from this frame
 		#1a. Prepare this frame for examination
 		modified_frame = new_frame.copy()
 		self.basis_frame = new_frame.copy()
-		# modified_frame = imutils.resize(modified_frame, width=600)
-		# modified_frame = cv2.GaussianBlur(modified_frame, (11, 11), 0)
-		# modified_frame = cv2.cvtColor(modified_frame, cv2.COLOR_BGR2HSV)
+
 		modified_frame = cv2.inRange(modified_frame, self.color_lower_bound, self.color_upper_bound)
 		modified_frame = cv2.erode(modified_frame, None, iterations = 2)
 		modified_frame = cv2.dilate(modified_frame, None, iterations = 2)
@@ -58,6 +57,11 @@ class ColorTracker:
 				self.current_circle_radius = radius
 
 		self.updateDirectionVector()
+
+		# if self.show_mask_window:
+		# 	window_title = "Tracker {}".format(color_lower_bound)
+		# 	cv2.imshow(window_title, masked_frame)
+
 	#end processNewFrame
 
 	def updateDirectionVector(self):

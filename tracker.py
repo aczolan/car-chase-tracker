@@ -15,84 +15,25 @@ g_frameCounter = 0 #Number of frames that have passed
 g_directionChangeArray = [] #List of direction changes (direction, timestamp), gets written to output
 
 g_numTrackers = 8 #Max is 10 for now
-g_showMasks = False
+g_showMasks = True
 
 #Parse the command line arguments
 #Return video file path
 def parseCommandLineArgs(args):
+	global g_showMasks
+
 	if len(args) >= 2:
+		print "Args: {}".format(args)
 		videoFilePath = args[1]
 		print "Video path: {}".format(videoFilePath)
 		return videoFilePath
-		if any("-showMasks" in arg for arg in args):
-			showMasks = True
+		if "-showMasks" in args:
+			g_showMasks = True
 
 	print "Error: Must specify video file path."
 	print "Usage: python object_movement.py object_tracking_example.mp4"
 	return None
 #end parseCommandLineArgs
-
-#Get the changes in direction (dX and dY)
-#Return (dX, dY) tuple
-def getDirectionChanges():
-
-	global g_trackedPoints
-	global g_currentDirection
-	global g_frameCounter
-	global g_directionChangeArray
-	global g_jumpDetected
-
-	thisDirection = "" #Current direction of the most recent x-y movement
-
-	#Thresholds for significant movement
-	xDirectionThreshold = 20 
-	yDirectionThreshold = 20
-
-	#Compute the difference between the x and y coordnates.
-	dX = g_trackedPoints[-1][0] - g_trackedPoints[1][0]
-	dY = g_trackedPoints[-1][0] - g_trackedPoints[1][1]
-
-	euclideanDistance = math.sqrt( math.pow(dX, 2) + math.pow(dY, 2) )
-	print "Euc dist: {}".format(euclideanDistance)
-
-	if euclideanDistance <= g_euclideanThreshold:
-		#Assess the current travel direction
-		g_jumpDetected = False
-
-		#Then, re-initialize the direction text variables
-		(dirX, dirY) = ("", "")
-
-		#Ensure there is significant movement in the x-direction
-		if np.abs(dX) > xDirectionThreshold:
-			#Set x-direction text
-			dirX = "East" if np.sign(dX) == 1 else "West"
-
-		#Ensure there is significant movement in the y-direction
-		if np.abs(dX) > yDirectionThreshold:
-			#Set the y-direction text
-			dirY = "North" if np.sign(dY) == 1 else "South"
-
-		#Check if both directions are non-empty
-		if dirX != "" and dirY != "":
-			thisDirection = "{}-{}".format(dirY, dirX)
-		#Otherwise, only one direction is non-empty
-		else:
-			thisDirection = dirX if dirX != "" else dirY
-
-		#Update global direction vars
-		if not ( thisDirection in g_currentDirection ) :
-			print "New direction: {}".format(thisDirection)
-			g_currentDirection = thisDirection
-			g_directionChangeArray.append({
-				"direction": g_currentDirection,
-				"timestamp": g_frameCounter
-				})
-	else:
-		#Do not update the 
-		g_jumpDetected = True
-
-	return (dX, dY)
-#end getDirectionChanges
 
 #main body
 if __name__ == "__main__":
@@ -126,23 +67,27 @@ if __name__ == "__main__":
 	#Initialize all trackers
 	all_trackers = []
 	#mask_hue_length = round(360 / g_numTrackers)
-	mask_hue_length = 36
+	mask_hue_length = 18
 	mask_hue_start_val = 30 #Start at green
 	for i in range(g_numTrackers):
-		hue_lower_bound = (mask_hue_start_val + mask_hue_length * i) % 360
-		hue_upper_bound = (mask_hue_start_val + (mask_hue_length * (i + 1)) - 1) % 360
+		hue_lower_bound = (mask_hue_start_val + mask_hue_length * i) % 180
+		hue_upper_bound = (mask_hue_start_val + (mask_hue_length * (i + 1)) - 1) % 180
 
 		this_lower_bound = (hue_lower_bound, 86, 6)
 		this_upper_bound = (hue_upper_bound, 255, 255)
 		new_tracker = ColorTracker(this_lower_bound, this_upper_bound)
+		new_tracker.show_mask_window = g_showMasks
 		all_trackers.append(new_tracker)
+	white_tracker = ColorTracker((0, 0, 125), (179, 10, 255))
+	all_trackers.append(white_tracker)
 
 	#Main while loop. On every iteration, get the next frame from the video stream and process it.
 	g_frameCounter = 0
 
 	#Record direction changes and place them in a "bucket" to be periodically processed.
-	frame_bucket_counter = 0
+	frame_bucket_counter = 1
 	direction_change_bucket = []
+	print "Show Masks: {}".format(g_showMasks)
 
 	while True:
 
@@ -159,6 +104,7 @@ if __name__ == "__main__":
 
 		#Do initial frame prep
 		prepped_frame = imutils.resize(prepped_frame, width=600)
+		prepped_frame = prepped_frame[0:-65, 0:600]
 		working_frame = prepped_frame.copy()
 
 		prepped_frame = cv2.GaussianBlur(prepped_frame, (11, 11), 0)
@@ -174,7 +120,7 @@ if __name__ == "__main__":
 			#all_direction_vectors.append(tracker.current_vector)
 			all_direction_vectors.append(tracker.summed_vector)
 
-			#Draw shit on the screen
+			#Draw things on the screen now
 			if tracker.should_draw_circle and len(tracker.tracked_points) > 1:
 				current_point = tracker.tracked_points[0]
 				#Draw the circle
@@ -192,8 +138,7 @@ if __name__ == "__main__":
 
 
 		g_frameCounter += 1
-		frame_bucket_counter += 1
-		if frame_bucket_counter % 100 == 0:
+		if frame_bucket_counter % 50 == 0:
 			output_direction = determineDirection(addVectorsAndNormalize(direction_change_bucket))
 			output_entry = {
 				"direction": output_direction,
@@ -201,11 +146,19 @@ if __name__ == "__main__":
 				}
 			g_directionChangeArray.append(output_entry)
 			print output_entry
-			frame_bucket_counter = 1
+			frame_bucket_counter = 0
+		frame_bucket_counter += 1
 
 
-		#We're ready to draw the modified frame now.
+		# We're ready to draw the modified frame now.
 		cv2.imshow("Frame", working_frame)
+
+		# Display the masks if specified
+		if g_showMasks:
+			for tracker in all_trackers:
+				window_title = "Tracker {}".format(tracker.color_lower_bound)
+				cv2.imshow(window_title, tracker.masked_frame)
+
 		key = cv2.waitKey(1) & 0xFF
 		if key == ord('q'):
 			break
