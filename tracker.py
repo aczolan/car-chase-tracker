@@ -11,6 +11,7 @@ import math
 
 from contours import *
 from drawing import *
+from utils import *
 
 #Global vars
 g_frameCounter = 0 #Number of frames that have passed
@@ -101,34 +102,6 @@ def getDirectionChanges():
 	return (dX, dY)
 #end getDirectionChanges
 
-def getDirectionInSemicircle(vector, north_or_south_string):
-	thresh_val_1 = 0.38268 # cos(3pi/8)
-	thresh_val_2 = 0.92388 # cos(pi/8)
-	direction = ""
-
-	if vector[0] < (-1 * thresh_val_2):
-		direction = "West"
-	elif vector[0] < (-1 * thresh_val_1):
-		direction = "{}-West".format(north_or_south_string)
-	elif vector[0] < thresh_val_1:
-		direction = "North"
-	elif vector[0] < thresh_val_2:
-		direction = "{}-East".format(north_or_south_string)
-	else:
-		direction = "East"
-
-	return direction
-#end function
-
-def determineDirection(normalized_vector):
-	if normalized_vector[1] >= 0:
-		#Quadrant 1 or 2
-		return getDirectionInSemicircle(normalized_vector, "North")
-	else:
-		#Quadrant 3 or 4
-		return getDirectionInSemicircle(normalized_vector, "South")
-#end determineDirection
-
 #main body
 if __name__ == "__main__":
 
@@ -195,16 +168,14 @@ if __name__ == "__main__":
 		prepped_frame = cv2.cvtColor(prepped_frame, cv2.COLOR_BGR2HSV)
 
 		#Iterate over all trackers and give them this frame
-		#Get the trackers' current centroids and vectors
-		overall_direction_vector = []
-		overall_direction_vector.append(0)
-		overall_direction_vector.append(0)
+		#Get the direction vectors of each tracker also
+		all_direction_vectors = []
 
 		for tracker in all_trackers:
 			#Update tracker with this frame
 			tracker.processNewFrame(prepped_frame)
-			overall_direction_vector[0] = overall_direction_vector[0] + tracker.current_vector[0]
-			overall_direction_vector[1] = overall_direction_vector[1] + tracker.current_vector[1]
+			#all_direction_vectors.append(tracker.current_vector)
+			all_direction_vectors.append(tracker.summed_vector)
 
 			#Draw shit on the screen
 			if tracker.should_draw_circle and len(tracker.tracked_points) > 1:
@@ -214,63 +185,12 @@ if __name__ == "__main__":
 				#Draw the arrow
 				working_frame = drawArrowToFrame(working_frame, current_point, tracker.current_vector)
 
-
-		#Normalize this vector when done
-		overall_euc_distance = math.sqrt( math.pow(overall_direction_vector[0], 2) + math.pow(overall_direction_vector[1], 2) )
-		if overall_euc_distance != 0.0:
-			overall_direction_vector[0] = overall_direction_vector[0] / overall_euc_distance
-			overall_direction_vector[1] = overall_direction_vector[1] / overall_euc_distance
+		overall_direction_vector = addVectorsAndNormalize(all_direction_vectors)
 
 		#Determine direction from this vector
 		direction_string = determineDirection(overall_direction_vector)
 		#Draw this on the screen
 		working_frame = drawDirectionText(working_frame, direction_string, overall_direction_vector[0], overall_direction_vector[1], g_frameCounter)
-
-		# #Get contours of this frame
-		# resizedFrame, contours = getContours(workingFrame)
-
-		# if resizedFrame is None:
-		# 	#Do not change workingFrame
-		# 	pass
-		# else:
-		# 	workingFrame = resizedFrame
-
-
-		# #Process the contours and get a frame with stuff drawn on it
-		# frameWithTrackerStuff = processContours(workingFrame, contours, g_trackedPoints, g_jumpDetected)
-
-		# if frameWithTrackerStuff is None:
-		# 	#Do not change workingFrame
-		# 	pass
-		# else:
-		# 	workingFrame = frameWithTrackerStuff
-
-		# # frameToDisplay = None
-		# # if frameWithTrackerStuff is None:
-		# # 	frameToDisplay = currentFrame
-		# # 	print "frameToDisplay takes currentFrame"
-		# # 	print "currentFrame is {}".format(type(currentFrame))
-		# # else:
-		# # 	frameToDisplay = frameWithTrackerStuff
-		# # 	print "frameToDisplay takes frameWithTrackerStuff"
-
-		# # print "frameWithTrackerStuff is {}".format(type(frameWithTrackerStuff))
-		# # print "frameToDisplay is {}".format(type(frameToDisplay))
-
-		# #Get the current traveling direction of this frame (compared to the last frame)
-		# frameWithDirectionText = None
-		# if len(g_trackedPoints) > 2:
-
-		# 	frameWithDirectionText = workingFrame
-		# 	(thisFrameDX, thisFrameDY) = getDirectionChanges()
-		# 	frameWithDirectionText = drawDirectionText(frameWithDirectionText, g_currentDirection, thisFrameDX, thisFrameDY, g_frameCounter)
-
-		# if frameWithDirectionText is None:
-		# 	#Do not change workingFrame
-		# 	pass
-		# else:
-		# 	workingFrame = frameWithDirectionText
-
 
 		#We're ready to draw the modified frame now.
 		cv2.imshow("Frame", working_frame)

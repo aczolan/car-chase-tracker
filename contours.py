@@ -5,6 +5,7 @@ import math
 from collections import deque
 
 from drawing import *
+from utils import *
 
 class ColorTracker:
 	color_lower_bound = (0, 0, 0)
@@ -15,6 +16,7 @@ class ColorTracker:
 	contours = []
 	current_circle_radius = 0
 	current_vector = (0, 0)
+	summed_vector = (0, 0)
 
 	jump_detected = False
 	should_draw_circle = False
@@ -59,21 +61,34 @@ class ColorTracker:
 	#end processNewFrame
 
 	def updateDirectionVector(self):
-		if len(self.tracked_points) > 1:
-			dX = self.tracked_points[-1][0] - self.tracked_points[1][0]
-			dY = self.tracked_points[-1][1] - self.tracked_points[1][1]
-			euclidean_distance_threshold = 200
-			euclidean_distance = math.sqrt( math.pow(dX, 2) + math.pow(dY, 2) )
-			print "Tracker {} : Euc dist: {}".format(id(self), euclidean_distance)
-			if euclidean_distance > euclidean_distance_threshold:
-				jump_detected = True
-			else:
-				jump_detected = False
-				#Normalize dX and dY and make a vector
-				if euclidean_distance != 0.0:
-					vector_x = dX / euclidean_distance
-					vector_y = dY / euclidean_distance
-					self.current_vector = (vector_x, vector_y)
+		if len(self.tracked_points) < 2:
+			return
+
+		dX = self.tracked_points[-1][0] - self.tracked_points[1][0]
+		dY = self.tracked_points[-1][1] - self.tracked_points[1][1]
+		euclidean_distance_threshold = 200
+		euclidean_distance = math.sqrt( math.pow(dX, 2) + math.pow(dY, 2) )
+		print "Tracker {} : Euc dist: {}".format(id(self), euclidean_distance)
+		if euclidean_distance > euclidean_distance_threshold:
+			jump_detected = True
+		else:
+			jump_detected = False
+			#Normalize dX and dY and make a vector
+			if euclidean_distance != 0.0:
+				vector_x = dX / euclidean_distance
+				vector_y = dY / euclidean_distance
+				self.current_vector = (vector_x, vector_y)
+
+		this_vector_history = []
+		for i in range(1, len(self.tracked_points)):
+			#Find the vector between the newest point and all the recorded points
+			this_dX = self.tracked_points[0][0] - self.tracked_points[i][0]
+			this_dY = self.tracked_points[0][1] - self.tracked_points[i][1]
+			this_vector_history.append((this_dX, this_dY))
+
+		#Add all the vectors in the vector history, then normalize that sum vector
+		self.summed_vector = addVectorsAndNormalize(this_vector_history)
+
 	#end updateDirectionVector
 
 	def __init__(self, hsv_lower_bound, hsv_upper_bound):
