@@ -1,13 +1,10 @@
-from collections import deque
 from imutils.video import VideoStream
-import numpy as np
 import argparse
 import cv2
 import imutils
 import time
 import pandas as pd
 import sys
-import math
 
 from contours import *
 from drawing import *
@@ -15,14 +12,9 @@ from utils import *
 
 #Global vars
 g_frameCounter = 0 #Number of frames that have passed
-g_trackedPoints = deque(maxlen=32) #List of tracked points
-g_directionChangeArray = [] #List of direction changes (direction, timestamp)
-g_currentDirection = "" #Current direction
+g_directionChangeArray = [] #List of direction changes (direction, timestamp), gets written to output
 
-g_euclideanThreshold = 9999999 #Euclidean distance threshold
-g_jumpDetected = False #Current tracked object has moved past the movement threshold
-
-g_numTrackers = 5 #Max is 10 for now
+g_numTrackers = 8 #Max is 10 for now
 g_showMasks = False
 
 #Parse the command line arguments
@@ -147,6 +139,11 @@ if __name__ == "__main__":
 
 	#Main while loop. On every iteration, get the next frame from the video stream and process it.
 	g_frameCounter = 0
+
+	#Record direction changes and place them in a "bucket" to be periodically processed.
+	frame_bucket_counter = 0
+	direction_change_bucket = []
+
 	while True:
 
 		#Grab the current frame
@@ -181,16 +178,31 @@ if __name__ == "__main__":
 			if tracker.should_draw_circle and len(tracker.tracked_points) > 1:
 				current_point = tracker.tracked_points[0]
 				#Draw the circle
-				working_frame = drawCircleToFrame(working_frame, current_point, int(round(tracker.current_circle_radius)), current_point)
+				working_frame = drawCircleToFrame(working_frame, tracker.current_circle_center, int(round(tracker.current_circle_radius)), current_point)
 				#Draw the arrow
 				working_frame = drawArrowToFrame(working_frame, current_point, tracker.current_vector)
 
-		overall_direction_vector = addVectorsAndNormalize(all_direction_vectors)
+		overall_direction_vector = addVectors(all_direction_vectors)
+		direction_change_bucket.append(overall_direction_vector)
 
 		#Determine direction from this vector
-		direction_string = determineDirection(overall_direction_vector)
+		direction_string = determineDirection(normalizeVector(overall_direction_vector))
 		#Draw this on the screen
 		working_frame = drawDirectionText(working_frame, direction_string, overall_direction_vector[0], overall_direction_vector[1], g_frameCounter)
+
+
+		g_frameCounter += 1
+		frame_bucket_counter += 1
+		if frame_bucket_counter % 100 == 0:
+			output_direction = determineDirection(addVectorsAndNormalize(direction_change_bucket))
+			output_entry = {
+				"direction": output_direction,
+				"timestamp": g_frameCounter
+				}
+			g_directionChangeArray.append(output_entry)
+			print output_entry
+			frame_bucket_counter = 1
+
 
 		#We're ready to draw the modified frame now.
 		cv2.imshow("Frame", working_frame)
@@ -198,7 +210,6 @@ if __name__ == "__main__":
 		if key == ord('q'):
 			break
 
-		g_frameCounter += 1
 
 	#end big while loop
 

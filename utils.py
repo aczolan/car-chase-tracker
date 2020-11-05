@@ -38,15 +38,16 @@ def normalizeVector(vector):
 	else:
 		return (0, 0)
 
-def addVectorsAndNormalize(vector_list):
-	#Add all the vectors in the list, then normalize the sum
+def addVectors(vectors_list):
 	sum_vector = []
 	sum_vector.append(0)
 	sum_vector.append(0)
 
-	for vec in vector_list:
+	for vec in vectors_list:
 		sum_vector[0] = sum_vector[0] + vec[0]
 		sum_vector[1] = sum_vector[1] + vec[1]
 
-	#Normalize this sum if possible
-	return normalizeVector(sum_vector)
+	return sum_vector
+
+def addVectorsAndNormalize(vectors_list):
+	return normalizeVector(addVectors(vectors_list))
