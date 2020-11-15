@@ -26,8 +26,8 @@ class ColorTracker:
 	show_mask_window = False
 
 	#Percentage of the frame near the edges to deny tracking
-	border_x_percent = 0.05
-	border_y_percent = 0.05
+	border_x_percent = 0.01
+	border_y_percent = 0.01
 
 	#Whether or not this tracker's direction vector is ready
 	dirvector_ready = False
@@ -82,8 +82,8 @@ class ColorTracker:
 		#Get most recent vector
 		newest_x, newest_y = self.tracked_points[0]
 		recent_dX = self.tracked_points[0][0] - self.tracked_points[1][0]
-		recent_dY = self.tracked_points[1][0] - self.tracked_points[1][1]
-		self.current_vector = (recent_dX, recent_dY)
+		recent_dY = self.tracked_points[0][1] - self.tracked_points[1][1]
+		self.current_vector = (-recent_dX, -recent_dY)
 
 		#1. Check for euclidean distance jump and/or if point is near border
 		euclidean_distance = getEuclideanDistance(self.current_vector)
@@ -119,7 +119,7 @@ class ColorTracker:
 			#Find the vector between the newest point and all the recorded points
 			this_dX = self.tracked_points[0][0] - self.tracked_points[i][0]
 			this_dY = self.tracked_points[0][1] - self.tracked_points[i][1]
-			this_vector_history.append((this_dX, this_dY))
+			this_vector_history.append((-this_dX, -this_dY))
 			self.num_usable_datapoints += 1
 
 		#Add all the vectors in the vector history

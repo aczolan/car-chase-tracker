@@ -22,10 +22,10 @@ g_useRecentVectors = False #Only use the most current tracked point
 
 #Optional Views
 g_showMasks = False #Show color mask window for each tracker
-g_showArrows = False #Show current direction vector window for each tracker
-g_showDirVectorsPerFrame = True #Show a window for the cumulative direction vector across all trackers on each frame
-g_showBucketVectors = True #Show a window for the combined direction vector at each bucket interval
-g_showTrackedPoints = True #Show current valid tracked points in the main window
+g_showArrows = True #Show current direction vector window for each tracker
+g_showDirVectorsPerFrame = False #Show a window for the cumulative direction vector across all trackers on each frame
+g_showBucketVectors = False #Show a window for the combined direction vector at each bucket interval
+g_showTrackedPoints = False #Show current valid tracked points in the main window
 
 #Tracker and bucket settings
 g_numberOfTrackers = 10 #Max is 10 for now
@@ -175,7 +175,7 @@ if __name__ == "__main__":
 
 			this_frame_direction_vector = addVectors(all_direction_vectors)
 			#Multiply this vector by -1 since its inverse is the camera pan direction (what we're looking for)
-			this_frame_direction_vector = multiplyVectorByScalar(this_frame_direction_vector, -1)
+			#this_frame_direction_vector = multiplyVectorByScalar(this_frame_direction_vector, -1)
 			direction_change_bucket.append(this_frame_direction_vector)
 			bucket_datapoint_count += this_frame_num_datapoints
 
@@ -188,6 +188,8 @@ if __name__ == "__main__":
 			g_frameCounter += 1
 			if frame_bucket_counter % g_bucketInterval == 0:
 				most_recent_bucket_vector = addVectorsAndNormalize(direction_change_bucket)
+				#Multiply this vector by -1 since its inverse is the camera pan direction (what we're looking for)
+				most_recent_bucket_vector = multiplyVectorByScalar(most_recent_bucket_vector, -1)
 				output_direction_string = determineDirectionFromVector(convertFromRDtoRUVector(most_recent_bucket_vector))
 				output_entry = createOutputEntry(output_direction_string, g_frameCounter, bucket_datapoint_count)
 				g_directionChangeArray.append(output_entry)
