@@ -25,8 +25,8 @@ g_showTrackedPoints = True
 g_useRecentVectors = False
 g_useSumVectors = True
 
-g_vectorAdditionMode = False
-g_vectorAngleAvgMode = True
+g_vectorAdditionMode = True
+g_vectorAngleAvgMode = False
 
 #Parse the command line arguments
 #Return video file path
@@ -46,6 +46,7 @@ def parseCommandLineArgs(args):
 	return None
 #end parseCommandLineArgs
 
+#Draws a tracker's enclosing circle, direction vectors, and tracked points onto the frame
 def drawTrackerInfoOnFrame(working_frame, tracker):
 	#Draw things for this tracker
 	if len(tracker.tracked_points) > 1:
@@ -64,7 +65,6 @@ def drawTrackerInfoOnFrame(working_frame, tracker):
 			for p in tracker.tracked_points:
 				working_frame = drawDotToFrame(working_frame, p, tracked_points_dot_color)
 	return working_frame
-	pass
 
 #main body
 if __name__ == "__main__":
@@ -223,7 +223,6 @@ if __name__ == "__main__":
 				frame_bucket_counter = 0
 				del angles_bucket[:]
 			frame_bucket_counter += 1
-			pass
 
 		# We're ready to draw the modified frame now.
 		cv2.imshow("Frame", working_frame)

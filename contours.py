@@ -66,12 +66,8 @@ class ColorTracker:
 				self.current_circle_radius = radius
 		else:
 			self.resetVectors()
-		
-		self.updateDirectionVector()
 
-		# if self.show_mask_window:
-		# 	window_title = "Tracker {}".format(color_lower_bound)
-		# 	cv2.imshow(window_title, masked_frame)
+		self.updateDirectionVector()
 
 	#end processNewFrame
 
