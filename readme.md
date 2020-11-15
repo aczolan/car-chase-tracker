@@ -4,5 +4,5 @@ Requires python 2.7 and OpenCV 4.2.
 
 ## Usage
 ```
-python path_to_video.mp4
+python tracker.py path_to_video.mp4
 ```

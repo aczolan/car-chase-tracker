@@ -22,10 +22,10 @@ g_useRecentVectors = False #Only use the most current tracked point
 
 #Optional Views
 g_showMasks = False #Show color mask window for each tracker
-g_showArrows = True #Show current direction vector window for each tracker
+g_showArrows = False #Show current direction vector window for each tracker
 g_showDirVectorsPerFrame = False #Show a window for the cumulative direction vector across all trackers on each frame
 g_showBucketVectors = False #Show a window for the combined direction vector at each bucket interval
-g_showTrackedPoints = False #Show current valid tracked points in the main window
+g_showTrackedPoints = True #Show current valid tracked points in the main window
 
 #Tracker and bucket settings
 g_numberOfTrackers = 10 #Max is 10 for now
