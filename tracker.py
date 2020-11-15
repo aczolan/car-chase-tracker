@@ -15,11 +15,18 @@ g_frameCounter = 0 #Number of frames that have passed
 g_directionChangeArray = [] #List of direction changes (direction, timestamp), gets written to output
 
 g_numTrackers = 10 #Max is 10 for now
+g_bucketInterval = 100
 g_showMasks = False
 g_showArrows = False
 g_showDirVectorsPerFrame = True
 g_showBucketVectors = True
 g_showTrackedPoints = True
+
+g_useRecentVectors = False
+g_useSumVectors = True
+
+g_vectorAdditionMode = False
+g_vectorAngleAvgMode = True
 
 #Parse the command line arguments
 #Return video file path
@@ -38,6 +45,26 @@ def parseCommandLineArgs(args):
 	print "Usage: python object_movement.py object_tracking_example.mp4"
 	return None
 #end parseCommandLineArgs
+
+def drawTrackerInfoOnFrame(working_frame, tracker):
+	#Draw things for this tracker
+	if len(tracker.tracked_points) > 1:
+		current_point = tracker.tracked_points[0]
+		if tracker.should_draw_circle:
+			working_frame = drawCircleToFrame(working_frame, tracker.current_circle_center, int(round(tracker.current_circle_radius)), current_point)
+		#Draw arrow for sum vector
+		summed_vector_color = (0, 255, 0)
+		working_frame = drawArrowToFrame(working_frame, current_point, tracker.summed_vector, summed_vector_color)
+		#Draw arrow for the most recent vector
+		current_vector_color = (150, 150, 0)
+		working_frame = drawArrowToFrame(working_frame, current_point, tracker.current_vector, current_vector_color)
+		#Draw tracked points
+		if g_showTrackedPoints:
+			tracked_points_dot_color = (255, 0, 0) #cv2.cvtColor(tracker.color_lower_bound, cv2.COLOR_HSV2BGR)
+			for p in tracker.tracked_points:
+				working_frame = drawDotToFrame(working_frame, p, tracked_points_dot_color)
+	return working_frame
+	pass
 
 #main body
 if __name__ == "__main__":
@@ -88,12 +115,13 @@ if __name__ == "__main__":
 	#Record direction changes and place them in a "bucket" to be periodically processed.
 	frame_bucket_counter = 1
 	direction_change_bucket = []
+	angles_bucket = []
 	most_recent_bucket_vector = (0, 0)
 	print "Show Masks: {}".format(g_showMasks)
 
 	while True:
 
-		time.sleep(0.05)
+		#time.sleep(0.05)
 
 		#Grab the current frame
 		current_frame = videoStream.read()
@@ -116,62 +144,86 @@ if __name__ == "__main__":
 
 		#Iterate over all trackers and give them this frame
 		#Get the direction vectors of each tracker also
-		all_direction_vectors = []
+		all_direction_vectors = [] #Used in vector addition mode
+		all_direction_angles = [] #Used in angle averaging mode
+		this_frame_direction_vector = (0, 0) #Overall direction vector determined from this frame
 
-		for tracker in all_trackers:
-			#Update tracker with this frame
-			tracker.processNewFrame(prepped_frame)
+		# --- Vector Addition Mode ---
 
-			#Draw things on the screen now
-			if tracker.dirvector_ready and len(tracker.tracked_points) > 1:
-				#all_direction_vectors.append(tracker.current_vector)
+		if g_vectorAdditionMode:
+			for tracker in all_trackers:
+				tracker.processNewFrame(prepped_frame)
+				if tracker.dirvector_ready:
 
-				#Apply a weight to this direction vector based on this tracker's number of tracked points
-				# weight = vector * (number of tracked points)^1.5
-				# weight = len(tracker.tracked_points)**1.5
-				# weighted_direction_vector = multiplyVectorByScalar(tracker.summed_vector, weight)
-				# all_direction_vectors.append(weighted_direction_vector)
-				all_direction_vectors.append(normalizeVector(tracker.summed_vector))
+					#Get direction vector for this frame
+					if g_useRecentVectors:
+						all_direction_vectors.append(normalizeVector(tracker.current_vector))
+					elif g_useSumVectors:
+						all_direction_vectors.append(normalizeVector(tracker.summed_vector))
 
-				current_point = tracker.tracked_points[0]
-				#Draw the circle
-				if tracker.should_draw_circle:
-					working_frame = drawCircleToFrame(working_frame, tracker.current_circle_center, int(round(tracker.current_circle_radius)), current_point)
-				#Draw the arrow
-				#working_frame = drawArrowToFrame(working_frame, current_point, multiplyVectorByScalar(normalizeVector(tracker.summed_vector), 40))
-				working_frame = drawArrowToFrame(working_frame, current_point, tracker.summed_vector)
+					working_frame = drawTrackerInfoOnFrame(working_frame, tracker)
 
-			#Draw tracked points
-			if g_showTrackedPoints:
-				for p in tracker.tracked_points:
-					working_frame = drawDotToFrame(working_frame, p)
+			this_frame_direction_vector = addVectors(all_direction_vectors)
+			#Multiply this vector by -1 since its inverse is the camera pan direction (what we're looking for)
+			this_frame_direction_vector = multiplyVectorByScalar(this_frame_direction_vector, -1)
+			direction_change_bucket.append(this_frame_direction_vector)
 
-		overall_direction_vector = addVectors(all_direction_vectors)
-		direction_change_bucket.append(overall_direction_vector)
+			#Determine direction for just this frame
+			direction_string = determineDirectionFromVector(normalizeVector(convertFromRDtoRUVector(this_frame_direction_vector)))
+			#Draw this direction on the screen
+			working_frame = drawDirectionText(working_frame, direction_string, this_frame_direction_vector[0], this_frame_direction_vector[1], g_frameCounter)
 
-		#Determine direction from this vector
-		#Multiply this vector by -1 since its inverse is the camera pan direction (what we're looking for)
-		overall_direction_vector = multiplyVectorByScalar(overall_direction_vector, -1)
+			#Increment frame counter and handle bucket
+			g_frameCounter += 1
+			if frame_bucket_counter % g_bucketInterval == 0:
+				most_recent_bucket_vector = addVectorsAndNormalize(direction_change_bucket)
+				output_direction_string = determineDirectionFromVector(convertFromRDtoRUVector(most_recent_bucket_vector))
+				output_entry = createOutputEntry(output_direction_string, g_frameCounter)
+				g_directionChangeArray.append(output_entry)
+				print(output_entry)
+				frame_bucket_counter = 0
+				del direction_change_bucket[:]
+			frame_bucket_counter += 1
 
-		direction_string = determineDirection(normalizeVector(convertFromRDtoRUVector(overall_direction_vector)))
-		#Draw this on the screen
-		working_frame = drawDirectionText(working_frame, direction_string, overall_direction_vector[0], overall_direction_vector[1], g_frameCounter)
+		# --- Vector Angle Averaging Mode ---
 
+		elif g_vectorAngleAvgMode:
+			for tracker in all_trackers:
+				tracker.processNewFrame(prepped_frame)
+				if tracker.dirvector_ready:
 
-		g_frameCounter += 1
-		if frame_bucket_counter % 50 == 0:
-			most_recent_bucket_vector = addVectorsAndNormalize(direction_change_bucket)
-			output_direction = determineDirection(most_recent_bucket_vector)
-			output_entry = {
-				"direction": output_direction,
-				"timestamp": g_frameCounter
-				}
-			g_directionChangeArray.append(output_entry)
-			print output_entry
-			frame_bucket_counter = 0
-			del direction_change_bucket[:]
-		frame_bucket_counter += 1
+					#Get direction angle for this frame
+					if g_useRecentVectors:
+						all_direction_angles.append(getAngleFromVector(tracker.current_vector))
+					elif g_useSumVectors:
+						all_direction_angles.append(getAngleFromVector(tracker.summed_vector))
 
+					working_frame = drawTrackerInfoOnFrame(working_frame, tracker)
+
+			overall_direction_angle = averageFloatsInList(all_direction_angles)
+			angles_bucket.append(overall_direction_angle)
+
+			#Determine direction for just this frame
+			this_frame_direction_vector = getNormalizedRUVectorFromAngle(overall_direction_angle)
+			direction_string = determineDirectionFromAngle(overall_direction_angle)
+			#Draw this direction on the screen
+			working_frame = drawDirectionText(working_frame, direction_string, this_frame_direction_vector[0], this_frame_direction_vector[1], g_frameCounter)
+			
+			#Increment frame counter and handle bucket
+			g_frameCounter += 1
+			if frame_bucket_counter % g_bucketInterval == 0:
+				bucket_average_angle = averageFloatsInList(angles_bucket)
+				most_recent_bucket_vector = getNormalizedRUVectorFromAngle(bucket_average_angle)
+				#Convert back to RD coordinates for OpenCV
+				most_recent_bucket_vector = (most_recent_bucket_vector[0], -most_recent_bucket_vector[1])
+				output_direction_string = determineDirectionFromAngle(bucket_average_angle)
+				output_entry = createOutputEntry(output_direction_string, g_frameCounter)
+				g_directionChangeArray.append(output_entry)
+				print(output_entry)
+				frame_bucket_counter = 0
+				del angles_bucket[:]
+			frame_bucket_counter += 1
+			pass
 
 		# We're ready to draw the modified frame now.
 		cv2.imshow("Frame", working_frame)
@@ -191,12 +243,12 @@ if __name__ == "__main__":
 			if g_showDirVectorsPerFrame:
 				dirvector_window_title = "Direction Vector (this frame)"
 				#Multiply this vector by 40 to show it better
-				dirvector_image = createArrowImg(multiplyVectorByScalar(overall_direction_vector, 40))
+				dirvector_image = createArrowImg(multiplyVectorByScalar(this_frame_direction_vector, 40))
 				cv2.imshow(dirvector_window_title, dirvector_image)
 			if g_showBucketVectors:
 				bucketvector_window_title = "Last Bucket Vector"
 				#Multiply this vector by 40 to show it better
-				bucketvector_image = createArrowImg(multiplyVectorByScalar(most_recent_bucket_vector, 40))
+				bucketvector_image = createArrowImg(multiplyVectorByScalar(this_frame_direction_vector, 40))
 				cv2.imshow(bucketvector_window_title, bucketvector_image)
 
 		key = cv2.waitKey(1) & 0xFF

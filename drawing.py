@@ -1,39 +1,37 @@
 import cv2
 import numpy as np
 
-def drawArrowToFrame(frame, originPoint, arrowVector):
-	arrow_color = (0, 255, 0)
-	arrow_end_point_x = originPoint[0] + arrowVector[0]
-	arrow_end_point_y = originPoint[1] + arrowVector[1]
+def drawArrowToFrame(frame, origin_point, arrow_vector, arrow_color):
+	arrow_end_point_x = origin_point[0] + arrow_vector[0]
+	arrow_end_point_y = origin_point[1] + arrow_vector[1]
 	arrow_end_point = (int(arrow_end_point_x), int(arrow_end_point_y))
 
-	newFrame = frame
-	cv2.arrowedLine(newFrame, originPoint, arrow_end_point, arrow_color, 2)
-	return newFrame
+	new_frame = frame
+	cv2.arrowedLine(new_frame, origin_point, arrow_end_point, arrow_color, 2)
+	return new_frame
 #end drawArrowToFrame
 
 #Draw the circle and centroid (for the most recent tracked point) on the frame
 #Return the new frame with the circle and centroid drawn on it
-def drawCircleToFrame(frame, circleCenter, circleRadius, centroidCenter):
-	circleColor = (0, 255, 255)
-	centroidColor = (0, 0, 255)
-	centroidRadius = 5
+def drawCircleToFrame(frame, circle_center, circle_radius, centroid_center):
+	circle_color = (0, 255, 255)
+	centroid_color = (0, 0, 255)
+	centroid_radius = 5
 
-	newFrame = frame
+	new_frame = frame
 
-	cv2.circle(newFrame, circleCenter, circleRadius, circleColor, 2)
-	cv2.circle(newFrame, centroidCenter, centroidRadius, centroidColor, -1)
+	cv2.circle(new_frame, circle_center, circle_radius, circle_color, 2)
+	cv2.circle(new_frame, centroid_center, centroid_radius, centroid_color, -1)
 
-	return newFrame
+	return new_frame
 #end drawCircleToFrame
 
-def drawDotToFrame(frame, dotCenter):
-	dotColor = (255, 0, 0)
-	dotRadius = 5
+def drawDotToFrame(frame, dot_center, dot_color):
+	dot_radius = 5
 
 	newFrame = frame
 
-	cv2.circle(newFrame, dotCenter, dotRadius, dotColor, -1)
+	cv2.circle(newFrame, dot_center, dot_radius, dot_color, -1)
 
 	return newFrame
 

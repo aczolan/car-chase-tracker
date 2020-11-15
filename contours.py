@@ -64,6 +64,9 @@ class ColorTracker:
 				self.tracked_points.appendleft(center)
 				self.current_circle_center = (int(round(x)), int(round(y)))
 				self.current_circle_radius = radius
+		else:
+			self.resetVectors()
+		
 		self.updateDirectionVector()
 
 		# if self.show_mask_window:
@@ -76,27 +79,15 @@ class ColorTracker:
 		if len(self.tracked_points) < 2:
 			return
 
-		# dX = self.tracked_points[-1][0] - self.tracked_points[1][0]
-		# dY = self.tracked_points[-1][1] - self.tracked_points[1][1]
-		# euclidean_distance_threshold = 200
-		# euclidean_distance = math.sqrt( math.pow(dX, 2) + math.pow(dY, 2) )
-		# #print "Tracker {} : Euc dist: {}".format(id(self), euclidean_distance)
-		# if euclidean_distance > euclidean_distance_threshold:
-		# 	jump_detected = True
-		# else:
-		# 	jump_detected = False
-		# 	#Normalize dX and dY and make a vector
-		# 	if euclidean_distance != 0.0:
-		# 		vector_x = dX / euclidean_distance
-		# 		vector_y = dY / euclidean_distance
-		# 		self.current_vector = (vector_x, vector_y)
-
-		#1. Check for border point
+		#Get most recent vector
 		newest_x, newest_y = self.tracked_points[0]
 		recent_dX = self.tracked_points[0][0] - self.tracked_points[1][0]
 		recent_dY = self.tracked_points[1][0] - self.tracked_points[1][1]
+		self.current_vector = (recent_dX, recent_dY)
+
+		#1. Check for euclidean distance jump and/or if point is near border
 		euclidean_distance_threshold = 300
-		euclidean_distance = getEuclideanDistance((recent_dX, recent_dY))
+		euclidean_distance = getEuclideanDistance(self.current_vector)
 
 		frame_height, frame_width, frame_channels = self.basis_frame.shape
 		left_border = self.border_x_percent * frame_width
