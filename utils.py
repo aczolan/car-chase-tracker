@@ -94,8 +94,9 @@ def getNormalizedRUVectorFromAngle(angleDeg):
 	#This angle is already normalized
 	return (x_component, y_component)
 
-def createOutputEntry(direction_text, timestamp):
+def createOutputEntry(direction_text, timestamp, num_data_points):
 	return {
 		"direction": direction_text,
-		"timestamp": timestamp
+		"timestamp": timestamp,
+		"num. data points": num_data_points
 		}

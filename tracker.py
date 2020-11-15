@@ -117,6 +117,8 @@ if __name__ == "__main__":
 	direction_change_bucket = []
 	angles_bucket = []
 	most_recent_bucket_vector = (0, 0)
+	bucket_datapoint_count = 0
+
 	print "Show Masks: {}".format(g_showMasks)
 
 	while True:
@@ -147,6 +149,7 @@ if __name__ == "__main__":
 		all_direction_vectors = [] #Used in vector addition mode
 		all_direction_angles = [] #Used in angle averaging mode
 		this_frame_direction_vector = (0, 0) #Overall direction vector determined from this frame
+		this_frame_num_datapoints = 0 #Number of vectors/angles found on this frame
 
 		# --- Vector Addition Mode ---
 
@@ -162,11 +165,13 @@ if __name__ == "__main__":
 						all_direction_vectors.append(normalizeVector(tracker.summed_vector))
 
 					working_frame = drawTrackerInfoOnFrame(working_frame, tracker)
+					this_frame_num_datapoints += tracker.num_usable_datapoints
 
 			this_frame_direction_vector = addVectors(all_direction_vectors)
 			#Multiply this vector by -1 since its inverse is the camera pan direction (what we're looking for)
 			this_frame_direction_vector = multiplyVectorByScalar(this_frame_direction_vector, -1)
 			direction_change_bucket.append(this_frame_direction_vector)
+			bucket_datapoint_count += this_frame_num_datapoints
 
 			#Determine direction for just this frame
 			direction_string = determineDirectionFromVector(normalizeVector(convertFromRDtoRUVector(this_frame_direction_vector)))
@@ -178,10 +183,12 @@ if __name__ == "__main__":
 			if frame_bucket_counter % g_bucketInterval == 0:
 				most_recent_bucket_vector = addVectorsAndNormalize(direction_change_bucket)
 				output_direction_string = determineDirectionFromVector(convertFromRDtoRUVector(most_recent_bucket_vector))
-				output_entry = createOutputEntry(output_direction_string, g_frameCounter)
+				output_entry = createOutputEntry(output_direction_string, g_frameCounter, bucket_datapoint_count)
 				g_directionChangeArray.append(output_entry)
 				print(output_entry)
+				#Reset the bucket
 				frame_bucket_counter = 0
+				bucket_datapoint_count = 0
 				del direction_change_bucket[:]
 			frame_bucket_counter += 1
 
@@ -199,9 +206,11 @@ if __name__ == "__main__":
 						all_direction_angles.append(getAngleFromVector(tracker.summed_vector))
 
 					working_frame = drawTrackerInfoOnFrame(working_frame, tracker)
+					this_frame_num_datapoints += tracker.num_usable_datapoints
 
 			overall_direction_angle = averageFloatsInList(all_direction_angles)
 			angles_bucket.append(overall_direction_angle)
+			bucket_datapoint_count += this_frame_num_datapoints
 
 			#Determine direction for just this frame
 			this_frame_direction_vector = getNormalizedRUVectorFromAngle(overall_direction_angle)
@@ -217,10 +226,11 @@ if __name__ == "__main__":
 				#Convert back to RD coordinates for OpenCV
 				most_recent_bucket_vector = (most_recent_bucket_vector[0], -most_recent_bucket_vector[1])
 				output_direction_string = determineDirectionFromAngle(bucket_average_angle)
-				output_entry = createOutputEntry(output_direction_string, g_frameCounter)
+				output_entry = createOutputEntry(output_direction_string, g_frameCounter, bucket_datapoint_count)
 				g_directionChangeArray.append(output_entry)
 				print(output_entry)
 				frame_bucket_counter = 0
+				bucket_datapoint_count = 0
 				del angles_bucket[:]
 			frame_bucket_counter += 1
 
@@ -247,7 +257,7 @@ if __name__ == "__main__":
 			if g_showBucketVectors:
 				bucketvector_window_title = "Last Bucket Vector"
 				#Multiply this vector by 40 to show it better
-				bucketvector_image = createArrowImg(multiplyVectorByScalar(this_frame_direction_vector, 40))
+				bucketvector_image = createArrowImg(multiplyVectorByScalar(most_recent_bucket_vector, 40))
 				cv2.imshow(bucketvector_window_title, bucketvector_image)
 
 		key = cv2.waitKey(1) & 0xFF

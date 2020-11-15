@@ -31,6 +31,9 @@ class ColorTracker:
 	#Whether or not this tracker's direction vector is ready
 	dirvector_ready = False
 
+	#Number of usable tracked points currently found
+	num_usable_datapoints = 0
+
 	def processNewFrame(self, new_frame):
 		#1. Get the contours from this frame
 		#1a. Prepare this frame for examination
@@ -117,6 +120,7 @@ class ColorTracker:
 			this_dX = self.tracked_points[0][0] - self.tracked_points[i][0]
 			this_dY = self.tracked_points[0][1] - self.tracked_points[i][1]
 			this_vector_history.append((this_dX, this_dY))
+			self.num_usable_datapoints += 1
 
 		#Add all the vectors in the vector history
 		self.summed_vector = addVectors(this_vector_history)
@@ -132,6 +136,7 @@ class ColorTracker:
 		self.current_vector = (0, 0)
 		self.summed_vector = (0, 0)
 		self.dirvector_ready = False
+		self.num_usable_datapoints = 0
 
 	def __init__(self, hsv_lower_bound, hsv_upper_bound):
 		self.color_lower_bound = hsv_lower_bound

@@ -95,10 +95,23 @@ def createArrowImg(arrow_vector):
 	center_point = ((width / 2), (height / 2))
 	img = cv2.circle(img, center_point, 5, red, -1)
 
+	#Draw outer circle
+	outer_circle_radius = 50
+	img = cv2.circle(img, center_point, outer_circle_radius, red, 2)
+
+	#Draw cardinal directions
+	text_font = cv2.FONT_HERSHEY_SIMPLEX
+	text_size = 0.5
+	text_color = red
+	cv2.putText(img, "N", (center_point[0] - 5, center_point[1] - outer_circle_radius - 6), text_font, text_size, red, 2)
+	cv2.putText(img, "S", (center_point[0] - 5, center_point[1] + outer_circle_radius + 15), text_font, text_size, red, 2)
+	cv2.putText(img, "W", (center_point[0] - outer_circle_radius - 16, center_point[1] + 6), text_font, text_size, red, 2)
+	cv2.putText(img, "E", (center_point[0] + outer_circle_radius + 4, center_point[1] + 6), text_font, text_size, red, 2)
+
 	#Draw arrow
 	end_point = (center_point[0] + int(round(arrow_vector[0])), center_point[1] + int(round(arrow_vector[1])))
 	color = (255, 255, 255)
-	thickness = 5
+	thickness = 3
 
 	img = cv2.arrowedLine(img, center_point, end_point, color, thickness)
 
