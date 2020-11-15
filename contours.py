@@ -10,8 +10,9 @@ from utils import *
 class ColorTracker:
 	color_lower_bound = (0, 0, 0)
 	color_upper_bound = (0, 0, 0)
-	basis_frame = None
-	masked_frame = None
+	basis_frame = None #Unedited frame
+	masked_frame = None #Mask frame containing black and white pixels
+	arrow_img = None #Arrow indicator showing current direction
 	tracked_points = deque(maxlen=32)
 	contours = []
 	current_circle_center = (0, 0)
@@ -90,8 +91,10 @@ class ColorTracker:
 			this_dY = self.tracked_points[0][1] - self.tracked_points[i][1]
 			this_vector_history.append((this_dX, this_dY))
 
-		#Add all the vectors in the vector history, then normalize that sum vector
+		#Add all the vectors in the vector history
 		self.summed_vector = addVectors(this_vector_history)
+
+		self.arrow_img = createArrowImg(self.summed_vector)
 
 	#end updateDirectionVector
 

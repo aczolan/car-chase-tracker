@@ -1,5 +1,5 @@
 import cv2
-import numpy
+import numpy as np
 
 def drawArrowToFrame(frame, originPoint, arrowVector):
 	arrow_color = (0, 255, 0)
@@ -76,3 +76,23 @@ def drawDirectionText(frame, direction, dX, dY, frame_counter):
 
 	return newFrame
 #end getDirectionText
+
+def createArrowImg(arrow_vector):
+	width = 200
+	height = 200
+	img = np.zeros(shape=[width, height, 3], dtype=np.uint8)
+
+	#Draw center point
+	red = (0, 0, 255)
+	center_point = ((width / 2), (height / 2))
+	img = cv2.circle(img, center_point, 5, red, -1)
+
+	#Draw arrow
+	end_point = (center_point[0] + arrow_vector[0], center_point[1] + arrow_vector[1])
+	color = (255, 255, 255)
+	thickness = 5
+
+	img = cv2.arrowedLine(img, center_point, end_point, color, thickness)
+
+	return img
+#end createArrowImg

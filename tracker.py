@@ -14,8 +14,9 @@ from utils import *
 g_frameCounter = 0 #Number of frames that have passed
 g_directionChangeArray = [] #List of direction changes (direction, timestamp), gets written to output
 
-g_numTrackers = 8 #Max is 10 for now
-g_showMasks = True
+g_numTrackers = 10 #Max is 10 for now
+g_showMasks = False
+g_showArrows = True
 
 #Parse the command line arguments
 #Return video file path
@@ -126,7 +127,7 @@ if __name__ == "__main__":
 				#Draw the circle
 				working_frame = drawCircleToFrame(working_frame, tracker.current_circle_center, int(round(tracker.current_circle_radius)), current_point)
 				#Draw the arrow
-				working_frame = drawArrowToFrame(working_frame, current_point, tracker.current_vector)
+				working_frame = drawArrowToFrame(working_frame, current_point, multiplyVectorByScalar(normalizeVector(tracker.summed_vector), 40))
 
 		overall_direction_vector = addVectors(all_direction_vectors)
 		direction_change_bucket.append(overall_direction_vector)
@@ -147,6 +148,7 @@ if __name__ == "__main__":
 			g_directionChangeArray.append(output_entry)
 			print output_entry
 			frame_bucket_counter = 0
+			del direction_change_bucket[:]
 		frame_bucket_counter += 1
 
 
@@ -158,6 +160,12 @@ if __name__ == "__main__":
 			for tracker in all_trackers:
 				window_title = "Tracker {}".format(tracker.color_lower_bound)
 				cv2.imshow(window_title, tracker.masked_frame)
+
+		if g_showArrows:
+			for tracker in all_trackers:
+				window_title = "Tracker {} Vector".format(tracker.color_lower_bound)
+				arrow_image = createArrowImg(tracker.summed_vector)
+				cv2.imshow(window_title, arrow_image)
 
 		key = cv2.waitKey(1) & 0xFF
 		if key == ord('q'):

@@ -51,3 +51,9 @@ def addVectors(vectors_list):
 
 def addVectorsAndNormalize(vectors_list):
 	return normalizeVector(addVectors(vectors_list))
+
+def multiplyVectorByScalar(vector, scalar):
+	new_vector = []
+	for i in range(len(vector)):
+		new_vector.append(vector[i] * scalar)
+	return new_vector
