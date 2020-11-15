@@ -57,3 +57,9 @@ def multiplyVectorByScalar(vector, scalar):
 	for i in range(len(vector)):
 		new_vector.append(vector[i] * scalar)
 	return new_vector
+
+#Convert a right-down x,y vector (used in cv)to right,up x,y vector (normal cartesian coordinates)
+def convertFromRDtoRUVector(rd_vector):
+	new_vector = (rd_vector[0], -rd_vector[1])
+	return new_vector
+

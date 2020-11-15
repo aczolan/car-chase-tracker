@@ -27,6 +27,16 @@ def drawCircleToFrame(frame, circleCenter, circleRadius, centroidCenter):
 	return newFrame
 #end drawCircleToFrame
 
+def drawDotToFrame(frame, dotCenter):
+	dotColor = (255, 0, 0)
+	dotRadius = 5
+
+	newFrame = frame
+
+	cv2.circle(newFrame, dotCenter, dotRadius, dotColor, -1)
+
+	return newFrame
+
 #Draw connected lines that trail behind the tracked point
 #Return the new frame with the trail drawn on it
 def drawTrailToFrame(frame, points, jump_detected):
@@ -88,7 +98,7 @@ def createArrowImg(arrow_vector):
 	img = cv2.circle(img, center_point, 5, red, -1)
 
 	#Draw arrow
-	end_point = (center_point[0] + arrow_vector[0], center_point[1] + arrow_vector[1])
+	end_point = (center_point[0] + int(round(arrow_vector[0])), center_point[1] + int(round(arrow_vector[1])))
 	color = (255, 255, 255)
 	thickness = 5
 
