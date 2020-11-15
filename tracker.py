@@ -10,23 +10,31 @@ from contours import *
 from drawing import *
 from utils import *
 
-#Global vars
+#Global variables and Settings
+
+#Main vector acquisition modes (choose one)
+g_vectorAdditionMode = True #Combine vectors every using their angles and magnitudes
+g_vectorAngleAvgMode = False #Experimental. Just retrieve vector angles in degrees every frame
+
+#Direction vector calculation method (choose one)
+g_useSumVectors = True #Combine results from all previous valid tracked points
+g_useRecentVectors = False #Only use the most current tracked point
+
+#Optional Views
+g_showMasks = False #Show color mask window for each tracker
+g_showArrows = False #Show current direction vector window for each tracker
+g_showDirVectorsPerFrame = True #Show a window for the cumulative direction vector across all trackers on each frame
+g_showBucketVectors = True #Show a window for the combined direction vector at each bucket interval
+g_showTrackedPoints = True #Show current valid tracked points in the main window
+
+#Tracker and bucket settings
+g_numberOfTrackers = 10 #Max is 10 for now
+g_trackerEuclidThreshold = 200 #Euclidean jump threshold in pixels-distance
+g_bucketInterval = 100 #Frame interval for combining datapoints
+
+#Internal use
 g_frameCounter = 0 #Number of frames that have passed
 g_directionChangeArray = [] #List of direction changes (direction, timestamp), gets written to output
-
-g_numTrackers = 10 #Max is 10 for now
-g_bucketInterval = 100
-g_showMasks = False
-g_showArrows = False
-g_showDirVectorsPerFrame = True
-g_showBucketVectors = True
-g_showTrackedPoints = True
-
-g_useRecentVectors = False
-g_useSumVectors = True
-
-g_vectorAdditionMode = True
-g_vectorAngleAvgMode = False
 
 #Parse the command line arguments
 #Return video file path
@@ -94,19 +102,19 @@ if __name__ == "__main__":
 
 	#Initialize all trackers
 	all_trackers = []
-	#mask_hue_length = round(360 / g_numTrackers)
+	#mask_hue_length = round(360 / g_numberOfTrackers)
 	mask_hue_length = 18
 	mask_hue_start_val = 30 #Start at green
-	for i in range(g_numTrackers):
+	for i in range(g_numberOfTrackers):
 		hue_lower_bound = (mask_hue_start_val + mask_hue_length * i) % 180
 		hue_upper_bound = (mask_hue_start_val + (mask_hue_length * (i + 1)) - 1) % 180
 
 		this_lower_bound = (hue_lower_bound, 86, 6)
 		this_upper_bound = (hue_upper_bound, 255, 255)
-		new_tracker = ColorTracker(this_lower_bound, this_upper_bound)
+		new_tracker = ColorTracker(this_lower_bound, this_upper_bound, g_trackerEuclidThreshold)
 		new_tracker.show_mask_window = g_showMasks
 		all_trackers.append(new_tracker)
-	white_tracker = ColorTracker((0, 0, 125), (179, 10, 255))
+	white_tracker = ColorTracker((0, 0, 125), (179, 10, 255), g_trackerEuclidThreshold)
 	all_trackers.append(white_tracker)
 
 	#Main while loop. On every iteration, get the next frame from the video stream and process it.
@@ -118,8 +126,6 @@ if __name__ == "__main__":
 	angles_bucket = []
 	most_recent_bucket_vector = (0, 0)
 	bucket_datapoint_count = 0
-
-	print "Show Masks: {}".format(g_showMasks)
 
 	while True:
 

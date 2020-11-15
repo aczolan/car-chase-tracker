@@ -20,6 +20,7 @@ class ColorTracker:
 	current_vector = (0, 0)
 	summed_vector = (0, 0)
 
+	euclidean_distance_threshold = 999
 	jump_detected = False
 	should_draw_circle = False
 	show_mask_window = False
@@ -85,7 +86,6 @@ class ColorTracker:
 		self.current_vector = (recent_dX, recent_dY)
 
 		#1. Check for euclidean distance jump and/or if point is near border
-		euclidean_distance_threshold = 300
 		euclidean_distance = getEuclideanDistance(self.current_vector)
 
 		frame_height, frame_width, frame_channels = self.basis_frame.shape
@@ -94,7 +94,7 @@ class ColorTracker:
 		top_border = self.border_y_percent * frame_height
 		bottom_border = (1.0 - self.border_y_percent) * frame_height
 
-		if euclidean_distance > euclidean_distance_threshold:
+		if euclidean_distance > self.euclidean_distance_threshold:
 			jump_detected = True
 			self.tracked_points.clear()
 			self.dirvector_ready = False
@@ -138,8 +138,9 @@ class ColorTracker:
 		self.dirvector_ready = False
 		self.num_usable_datapoints = 0
 
-	def __init__(self, hsv_lower_bound, hsv_upper_bound):
+	def __init__(self, hsv_lower_bound, hsv_upper_bound, jump_distance_threshold):
 		self.color_lower_bound = hsv_lower_bound
 		self.color_upper_bound = hsv_upper_bound
+		self.euclidean_distance_threshold = jump_distance_threshold
 	#end init
 #end class
